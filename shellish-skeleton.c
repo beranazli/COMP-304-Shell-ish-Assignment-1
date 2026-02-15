@@ -282,12 +282,13 @@ int prompt(struct command_t *command) {
       continue;
     }
 
-    putchar(c); // echo the character
+    putchar(c); //echo the character
     buf[index++] = c;
     if (index >= sizeof(buf) - 1)
       break;
-    if (c == '\n') // enter key
+    if (c == '\n') {
       break;
+    }
     if (c == 4) // Ctrl+D
       return EXIT;
   }
@@ -336,12 +337,40 @@ int process_command(struct command_t *command) {
 
     // TODO: do your own exec with path resolving using execv()
     // do so by replacing the execvp call below
-    execvp(command->name, command->args); // exec+args+path
+
+    // If command contains '/', tries to execute it. If it is absolute or relative path no search needed
+    if (strchr(command->name, '/') != NULL) {
+      execv(command->name, command->args);
+    }else {
+      char *path = getenv("PATH");
+      if (path) {
+        char *path_copy = strdup(path); // strtok modifies the string, so we copy it
+        char *directory = strtok(path_copy, ":");
+
+        while (directory != NULL) {
+          char full_path[1024];
+          // Construct full path: directory/command
+          sprintf(full_path, "%s/%s", directory, command->name);
+          execv(full_path, command->args);
+          directory = strtok(NULL, ":");
+        }
+        free(path_copy);
+      }
+    }
+
+
+    //both direct execution and PATH search failed
     printf("-%s: %s: command not found\n", sysname, command->name);
     exit(127);
   } else {
     // TODO: implement background processes here
-    wait(0); // wait for child process to finish
+    if (command->background) {
+      printf("[Process %d]\n", pid);
+    }
+    else {
+      wait(0); // wait for the child process to finish
+    }
+
     return SUCCESS;
   }
 }
